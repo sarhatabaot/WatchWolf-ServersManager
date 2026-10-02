@@ -166,6 +166,7 @@
             </goals>
             <configuration>
               <skipTests>${skip.integration.tests}</skipTests>
+              <useModulePath>false</useModulePath>
               <redirectTestOutputToFile>true</redirectTestOutputToFile>
             </configuration>
           </execution>

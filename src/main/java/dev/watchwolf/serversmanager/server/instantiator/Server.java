@@ -8,6 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
 public class Server implements ServerMessageEvent {
@@ -31,23 +32,29 @@ public class Server implements ServerMessageEvent {
     protected final Collection<ServerStartedEvent> serverStartedListeners;
     protected final Collection<ServerStopNotifier> serverStoppedListeners;
     protected final Collection<ServerMessageEvent> serverMessageListeners;
+    private boolean started;
+    private boolean stopped;
 
     public Server(String ip) {
         this.ip = ip;
-        this.serverStartedListeners = new ArrayList<>();
-        this.serverStoppedListeners = new ArrayList<>();
-        this.serverMessageListeners = new ArrayList<>();
+        this.serverStartedListeners = new CopyOnWriteArrayList<>();
+        this.serverStoppedListeners = new CopyOnWriteArrayList<>();
+        this.serverMessageListeners = new CopyOnWriteArrayList<>();
 
         this.subscribeToServerMessageEvents(this);
     }
 
-    void raiseServerStartedEvent() throws IOException {
+    synchronized void raiseServerStartedEvent() throws IOException {
         this.logger.traceEntry();
+        if (this.started) return;
+        this.started = true;
         for (ServerStartedEvent e : this.serverStartedListeners) e.serverStarted();
     }
 
-    void raiseServerStoppedEvent() {
+    synchronized void raiseServerStoppedEvent() {
         this.logger.traceEntry();
+        if (this.stopped) return;
+        this.stopped = true;
         for (ServerStopNotifier e : this.serverStoppedListeners) e.onServerStop();
     }
 
@@ -88,15 +95,22 @@ public class Server implements ServerMessageEvent {
         return this.ip;
     }
     
-    public Server subscribeToServerStartedEvents(ServerStartedEvent subscriber) {
+    public synchronized Server subscribeToServerStartedEvents(ServerStartedEvent subscriber) {
         this.logger.traceEntry(null, subscriber);
-        this.serverStartedListeners.add(subscriber);
+        if (this.started) {
+            try {
+                subscriber.serverStarted();
+            } catch (IOException ex) {
+                this.logger.error("Could not replay server-started event", ex);
+            }
+        } else this.serverStartedListeners.add(subscriber);
         return this;
     }
 
-    public Server subscribeToServerStoppedEvents(ServerStopNotifier subscriber) {
+    public synchronized Server subscribeToServerStoppedEvents(ServerStopNotifier subscriber) {
         this.logger.traceEntry(null, subscriber);
-        this.serverStoppedListeners.add(subscriber);
+        if (this.stopped) subscriber.onServerStop();
+        else this.serverStoppedListeners.add(subscriber);
         return this;
     }
 

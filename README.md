@@ -10,10 +10,32 @@ back to the requester, and frees everything once the server stops.
 ## How it works
 
 The runtime provider is selected by `WATCHWOLF_MINECRAFT_RUNTIME`. The launch script passes
-this host variable into ServersManager; an unset or empty value selects `legacy`. Phase 1
-supports only `legacy` and rejects any other value when an RPC session is created. The `itzg`
-provider is planned for Phase 2. The legacy provider still requires the prebuilt server JAR and selects the
+this host variable into ServersManager; an unset or empty value selects `legacy`. Set it to
+`itzg` to use `itzg/minecraft-server` for **Paper 1.20.6 only**. Other requests return a
+provisioning error. The legacy provider still requires the prebuilt server JAR and selects an
 `eclipse-temurin` Java image from the requested Minecraft version.
+
+For the itzg provider, `WATCHWOLF_ITZG_IMAGE` defaults to `itzg/minecraft-server` and
+`WATCHWOLF_ITZG_TAG` defaults to `java21`. Set these variables in the host environment before
+running `ci/release/run.sh`; the script passes them into the manager. A variable explicitly set
+inside the manager container takes precedence over the code default. The image tag selects the
+container runtime and is independent of the requested Minecraft version. The manager pulls a
+missing image, then the image downloads the requested Paper build on first start. Pin the tag
+or image deliberately before release. Every isolated instance downloads its own Paper files;
+there is no shared Minecraft JAR cache yet. The image's documented Java 21 variant is used for
+Paper 1.20.6; `stable` currently selects a different Java major version.
+
+Each itzg instance gets its own named Docker volume mounted at `/data`. ServersManager copies
+the prepared world, config and plugin files into that volume through Docker's API. The
+WatchWolf-Server plugin must be present or provisioning fails. The volume is removed after
+the server exits; instance logs under `logs/` remain. The manager still needs the Docker
+socket, and instances retain the existing bridge network and consecutive published port pair.
+The helper copies files into the mounted volume and sets ownership to UID/GID 1000, matching
+the itzg runtime settings. This storage path avoids nested Docker bind mounts on Windows Docker
+Desktop. A real Paper 1.20.6 run and a Tester player-list petition passed on Windows Docker
+Desktop with Linux containers on 2026-10-02. Linux Docker Engine has not been tested here.
+The itzg provider assumes one ServersManager process per Docker daemon when reclaiming
+labelled containers and `watchwolf-itzg-*` volumes after a manager restart.
 
 ```
 Tester ──"start Spigot 1.19 with these plugins"──▶ ServersManager :8000

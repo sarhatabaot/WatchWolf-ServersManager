@@ -24,12 +24,22 @@ public class ThrowableServer extends Server {
         this.setSubEventManagerAsSelf();
     }
 
+    @Override
+    public void stop() {
+        this.wrappedServer.stop();
+    }
+
     private void setSubEventManagerAsSelf() {
         this.serverMessageListeners.clear(); // the super constructor will subscribe this object to messages, but the wrapped server is already subscribed
 
         // now the listener are us
         this.wrappedServer.serverMessageListeners.remove(this.wrappedServer);
         this.wrappedServer.subscribeToServerMessageEvents(this);
+        this.wrappedServer.subscribeToServerStoppedEvents(this::notifyWrapperStopped);
+    }
+
+    private void notifyWrapperStopped() {
+        super.raiseServerStoppedEvent();
     }
 
     void raiseExceptionEvent(String msg) {
@@ -44,13 +54,12 @@ public class ThrowableServer extends Server {
     @Override
     void raiseServerStartedEvent() throws IOException {
         this.wrappedServer.raiseServerStartedEvent();
-        for (ServerStartedEvent e : this.serverStartedListeners) e.serverStarted();
+        super.raiseServerStartedEvent();
     }
 
     @Override
     void raiseServerStoppedEvent() {
         this.wrappedServer.raiseServerStoppedEvent();
-        for (ServerStopNotifier e : this.serverStoppedListeners) e.onServerStop();
     }
 
     @Override

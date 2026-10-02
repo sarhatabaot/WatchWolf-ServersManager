@@ -7,11 +7,13 @@ import dev.watchwolf.core.rpc.stubs.serversmanager.CapturedExceptionEvent;
 import dev.watchwolf.core.rpc.stubs.serversmanager.ServerStartedEvent;
 import dev.watchwolf.core.rpc.stubs.serversmanager.ServersManagerPetitions;
 import dev.watchwolf.serversmanager.server.ServerJarUnavailableException;
+import dev.watchwolf.serversmanager.server.ServerProvisioningException;
 import dev.watchwolf.serversmanager.server.ServersManager;
 import dev.watchwolf.serversmanager.server.instantiator.ThrowableServer;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An implementation of ServersManager using Docker to launch the servers.
@@ -39,9 +41,21 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
             // requesteeIpGetter will work because `startServer` gets called on a syncronized environment (by `forwardCall`), so we'll have the IP of the client calling this function
             final ThrowableServer server = this.serversManager.startServer(serverType, serverVersion, plugins, worldType, seed, maps, configFiles, this.requesteeIpGetter.getRequesteeIp());
 
-            server.subscribeToServerStartedEvents(this.serverStartedEventManager);
+            AtomicBoolean reachedReadiness = new AtomicBoolean(false);
+            server.subscribeToServerStartedEvents(() -> {
+                reachedReadiness.set(true);
+                this.serverStartedEventManager.serverStarted();
+            });
             server.subscribeToServerStoppedEvents(() -> {
                 System.out.println("Server " + serverType + " " + serverVersion + " (" + server.getIp() + ") stopped");
+                if (!reachedReadiness.get()) {
+                    try {
+                        this.capturedExceptionEventManager.capturedException("Server " + serverType + " "
+                                + serverVersion + " stopped before Minecraft readiness; inspect its instance log");
+                    } catch (IOException ex) {
+                        System.err.println("Could not report failed server startup: " + ex);
+                    }
+                }
             });
             server.subscribeToExceptionEvents((msg) -> {
                 System.err.println("Got exception on " + serverType + " " + serverVersion + " server:\n" + msg);
@@ -49,7 +63,7 @@ public class ServersManagerLocalImplementation implements ServersManagerPetition
             });
 
             return server.getIp();
-        } catch (ServerJarUnavailableException ex) {
+        } catch (ServerJarUnavailableException | ServerProvisioningException ex) {
             String errorMessage = "Couldn't start a " + serverType + " server, on " + serverVersion + ": " + ex.toString();
             System.err.println(errorMessage);
             capturedExceptionEventManager.capturedException(errorMessage);

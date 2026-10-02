@@ -56,12 +56,18 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         private final Logger logger;
         private final String serverId;
         private final Server callable;
+        private final Runnable afterStopped;
 
         public DockerContainerStoppedObserver(String serverId, Server callable) {
+            this(serverId, callable, () -> {});
+        }
+
+        public DockerContainerStoppedObserver(String serverId, Server callable, Runnable afterStopped) {
             this.logger = LogManager.getLogger(DockerContainerStoppedObserver.class.getName());
 
             this.serverId = serverId;
             this.callable = callable;
+            this.afterStopped = afterStopped;
         }
 
         public String getServerId() {
@@ -90,7 +96,11 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
 
             // server stopped
             this.logger.info("Docker " + this.serverId + " closed");
-            this.callable.raiseServerStoppedEvent();
+            try {
+                this.callable.raiseServerStoppedEvent();
+            } finally {
+                this.afterStopped.run();
+            }
         }
     }
 
@@ -114,7 +124,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * Gets the max port used by ServersManager instances, and then adds one.
      * @return Next port that ServersManager will have to use
      */
-    private static synchronized int getNextServerPort() {
+    static synchronized int getNextServerPort() {
         logger.traceEntry();
         // get the server containers running
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
@@ -129,10 +139,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         System.out.println("Got " + exec.size() + " server containers running");
 
         // get the ports being used
-        Set<Integer> usedPorts = new HashSet<>();
-        for (Container server : exec) {
-            for (ContainerPort port : server.getPorts()) usedPorts.add(port.getPublicPort());
-        }
+        Set<Integer> usedPorts = getUsedPublicPorts(exec);
         System.out.println("Got the following used ports: " + usedPorts.toString());
 
         // get the first free port
@@ -141,7 +148,18 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         return logger.traceExit(freePort);
     }
 
-    private static String getStartedServerIp(String containerId) {
+    static Set<Integer> getUsedPublicPorts(List<Container> containers) {
+        Set<Integer> usedPorts = new HashSet<>();
+        for (Container server : containers) {
+            if (server.getPorts() == null) continue;
+            for (ContainerPort port : server.getPorts()) {
+                if (port.getPublicPort() != null) usedPorts.add(port.getPublicPort());
+            }
+        }
+        return usedPorts;
+    }
+
+    static String getStartedServerIp(String containerId) {
         logger.traceEntry(null, containerId);
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();
@@ -159,7 +177,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
         Container serverContainer = exec.get(0);
         Set<Integer> containerPorts = new HashSet<>();
         for (ContainerPort port : serverContainer.getPorts()) {
-            containerPorts.add(port.getPublicPort());
+            if (port.getPublicPort() != null) containerPorts.add(port.getPublicPort());
         }
 
         List<Integer> ports = containerPorts.stream().sorted().toList();
@@ -175,14 +193,20 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * @param container Container to attach
      * @param callback Object with the callback method to call
      */
-    private static void attachStdio(DockerClient dockerClient, CreateContainerResponse container, ResultCallback<Frame> callback) {
-        logger.traceEntry(null, dockerClient, container, callback);
-        dockerClient.logContainerCmd(container.getId())
+    static void attachStdio(DockerClient dockerClient, String containerId, ResultCallback<Frame> callback) {
+        logger.traceEntry(null, dockerClient, containerId, callback);
+        dockerClient.logContainerCmd(containerId)
                 .withStdOut(true)
                 .withStdErr(true)
                 .withFollowStream(true)
                 .exec(callback);
         logger.traceExit();
+    }
+
+    // Keep the original helper signature for legacy integration tests and callers.
+    private static void attachStdio(DockerClient dockerClient, CreateContainerResponse container,
+                                    ResultCallback<Frame> callback) {
+        attachStdio(dockerClient, container.getId(), callback);
     }
 
     private static String getDockerImageForJavaVersion(int javaVersion) {
@@ -235,7 +259,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
             if (server.get() == null) return; // still not linked (this shouldn't be called)
             server.get().raiseServerMessageEvent(line);
         };
-        DockerizedServerInstantiator.attachStdio(dockerClient, container, new StdioAdapter(serverId, stdioCallback));
+        DockerizedServerInstantiator.attachStdio(dockerClient, container.getId(), new StdioAdapter(serverId, stdioCallback));
 
         server.set(new Server(DockerizedServerInstantiator.getStartedServerIp(container.getId())));
         server.get().setStopper(() -> DockerizedServerInstantiator.killContainer(container.getId()));
@@ -264,7 +288,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      * Kills a container, best effort: a container that is already gone is the outcome we wanted.
      * @param containerId Container to kill
      */
-    private static void killContainer(String containerId) {
+    static void killContainer(String containerId) {
         logger.info("Stopping container " + containerId + "...");
         DefaultDockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder().build();
         final DockerClient dockerClient = DockerClientBuilder.getInstance(config).build();

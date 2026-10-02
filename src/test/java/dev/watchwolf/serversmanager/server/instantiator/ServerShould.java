@@ -22,6 +22,21 @@ public class ServerShould {
     }
 
     @Test
+    void replayReadinessAndStopToLateSubscribers() throws Exception {
+        Server server = getServer();
+        server.raiseServerStartedEvent();
+        server.raiseServerStoppedEvent();
+
+        AtomicInteger starts = new AtomicInteger();
+        AtomicInteger stops = new AtomicInteger();
+        server.subscribeToServerStartedEvents(starts::incrementAndGet);
+        server.subscribeToServerStoppedEvents(stops::incrementAndGet);
+
+        assertEquals(1, starts.get());
+        assertEquals(1, stops.get());
+    }
+
+    @Test
     void reportItsIp() {
         String ip = "127.0.0.1:25555";
 

@@ -59,4 +59,6 @@ docker run -d --rm --name ServersManager \
     --env PARENT_PWD="$PARENT_PWD" \
     --env SERVER_PATH_SHIFT="$SERVER_PATH_SHIFT" \
     --env WATCHWOLF_MINECRAFT_RUNTIME="${WATCHWOLF_MINECRAFT_RUNTIME:-legacy}" \
+    --env WATCHWOLF_ITZG_IMAGE="${WATCHWOLF_ITZG_IMAGE:-itzg/minecraft-server}" \
+    --env WATCHWOLF_ITZG_TAG="${WATCHWOLF_ITZG_TAG:-java21}" \
     servers-manager

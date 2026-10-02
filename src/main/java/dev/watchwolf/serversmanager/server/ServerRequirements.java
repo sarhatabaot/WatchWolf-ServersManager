@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -27,6 +28,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ServerRequirements {
     public static final String SHARED_TMP_FOLDER = "{pwd}/{offset}/tmp";
@@ -43,6 +45,7 @@ public class ServerRequirements {
 
     private static final Logger logger = LogManager.getLogger(ServerRequirements.class.getName());
     private static boolean serverFolderInfoLogged = false;
+    private static final AtomicLong lastServerId = new AtomicLong();
 
     private static PluginDeserializer deserializer = new ServersManagerPluginDeserializer();
     private static Path serverTypesFolder = Paths.get( (System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT") ).resolve("server-types");
@@ -61,9 +64,16 @@ public class ServerRequirements {
     }
 
     static Path createServerFolder() throws IOException {
-        String serverFolder = getPrivateServerFolder(String.valueOf(System.currentTimeMillis()));
-        Files.createDirectories(new File(serverFolder).toPath());
-        return Paths.get(serverFolder);
+        while (true) {
+            long id = lastServerId.updateAndGet(previous -> Math.max(System.currentTimeMillis(), previous + 1));
+            Path folder = Paths.get(getPrivateServerFolder(String.valueOf(id)));
+            Files.createDirectories(folder.getParent());
+            try {
+                return Files.createDirectory(folder);
+            } catch (FileAlreadyExistsException collision) {
+                // A concurrent request or prior manager run already owns this instance ID.
+            }
+        }
     }
 
     /**
@@ -216,17 +226,29 @@ settings:
     }
 
     public static String setupFolder(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, String seed, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
+        return setupFolderInternal(serverType, serverVersion, plugins, worldType, seed, maps, configFiles, jarName);
+    }
+
+    /** Prepare the usual world, properties, and plugins without a locally built server JAR. */
+    public static String setupFolderWithoutJar(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, String seed, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles) throws IOException {
+        return setupFolderInternal(serverType, serverVersion, plugins, worldType, seed, maps, configFiles, null);
+    }
+
+    private static String setupFolderInternal(String serverType, String serverVersion, Collection<Plugin> plugins, WorldType worldType, String seed, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, String jarName) throws IOException {
         logger.traceEntry(null, serverType, serverVersion, plugins, worldType, maps, configFiles, jarName);
         if (!ServerRequirements.serverFolderInfoLogged) ServerRequirements.logServerFolderInfo();
 
+        Path serverFolder = null;
         try (final CloseableThreadContext.Instance ctc = CloseableThreadContext.push(serverType).push(serverVersion)) {
-            Path serverFolder = ServerRequirements.createServerFolder();
+            serverFolder = ServerRequirements.createServerFolder();
             logger.info("Server folder at " + serverFolder.toString());
 
             // copy server (type&version)
             logger.debug("Preparing folder...");
-            logger.debug("Copying server jar...");
-            ServerRequirements.copyServerJar(serverType, serverVersion, serverFolder, jarName);
+            if (jarName != null) {
+                logger.debug("Copying server jar...");
+                ServerRequirements.copyServerJar(serverType, serverVersion, serverFolder, jarName);
+            }
             logger.debug("Generating eula file...");
             generateEulaFile(serverFolder);
             logger.debug("Generating timings configuration...");
@@ -275,8 +297,19 @@ settings:
             }
             logger.debug("Done preparing server folder");
 
-            // we must return the global folder
-            return logger.traceExit(getGlobalServerFolder(serverFolder.toString()));
+            // Legacy Docker bind mounts need a host path. The itzg provider copies prepared
+            // files through the Docker API and only needs the manager's local path.
+            return logger.traceExit(jarName == null
+                    ? serverFolder.toString() : getGlobalServerFolder(serverFolder.toString()));
+        } catch (IOException | RuntimeException ex) {
+            if (serverFolder != null) {
+                try {
+                    FileUtils.deleteDirectory(serverFolder.toFile());
+                } catch (IOException cleanupFailure) {
+                    ex.addSuppressed(cleanupFailure);
+                }
+            }
+            throw ex;
         }
     }
 

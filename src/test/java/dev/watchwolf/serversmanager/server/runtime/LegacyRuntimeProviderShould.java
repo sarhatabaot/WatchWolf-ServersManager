@@ -44,9 +44,10 @@ public class LegacyRuntimeProviderShould {
     }
 
     @Test
-    public void defaultToLegacyAndRejectUnimplementedRuntimes() {
+    public void defaultToLegacyAndSelectItzgExplicitly() {
         assertInstanceOf(LegacyRuntimeProvider.class, MinecraftRuntimeProviders.select(null));
         assertInstanceOf(LegacyRuntimeProvider.class, MinecraftRuntimeProviders.select("legacy"));
-        assertThrows(IllegalArgumentException.class, () -> MinecraftRuntimeProviders.select("itzg"));
+        assertInstanceOf(ItzgRuntimeProvider.class, MinecraftRuntimeProviders.select("itzg"));
+        assertThrows(IllegalArgumentException.class, () -> MinecraftRuntimeProviders.select("unknown"));
     }
 }

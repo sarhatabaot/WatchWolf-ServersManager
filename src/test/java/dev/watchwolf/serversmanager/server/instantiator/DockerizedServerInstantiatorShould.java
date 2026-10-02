@@ -1,9 +1,15 @@
 package dev.watchwolf.serversmanager.server.instantiator;
 
+import com.github.dockerjava.api.model.Container;
+import com.github.dockerjava.api.model.ContainerPort;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DockerizedServerInstantiatorShould {
     /**
@@ -20,5 +26,16 @@ public class DockerizedServerInstantiatorShould {
     public void leaveNamesWithoutASlashAlone() {
         assertEquals("MC_Server-1700000000000", DockerizedServerInstantiator.stripDockerNamePrefix("MC_Server-1700000000000"));
         assertNull(DockerizedServerInstantiator.stripDockerNamePrefix(null));
+    }
+
+    @Test
+    public void ignoreContainersWithoutPublishedPorts() {
+        Container noPorts = mock(Container.class);
+        Container withUnpublishedPort = mock(Container.class);
+        ContainerPort unpublished = new ContainerPort().withPrivatePort(25565);
+        when(withUnpublishedPort.getPorts()).thenReturn(new ContainerPort[]{unpublished});
+
+        assertEquals(0, DockerizedServerInstantiator.getUsedPublicPorts(
+                List.of(noPorts, withUnpublishedPort)).size());
     }
 }
