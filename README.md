@@ -9,6 +9,12 @@ back to the requester, and frees everything once the server stops.
 
 ## How it works
 
+The runtime provider is selected by `WATCHWOLF_MINECRAFT_RUNTIME`. The launch script passes
+this host variable into ServersManager; an unset or empty value selects `legacy`. Phase 1
+supports only `legacy` and rejects any other value when an RPC session is created. The `itzg`
+provider is planned for Phase 2. The legacy provider still requires the prebuilt server JAR and selects the
+`eclipse-temurin` Java image from the requested Minecraft version.
+
 ```
 Tester ──"start Spigot 1.19 with these plugins"──▶ ServersManager :8000
                                                           │

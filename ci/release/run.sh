@@ -58,4 +58,5 @@ docker run -d --rm --name ServersManager \
     --env PUBLIC_IP="$PUBLIC_IP" \
     --env PARENT_PWD="$PARENT_PWD" \
     --env SERVER_PATH_SHIFT="$SERVER_PATH_SHIFT" \
+    --env WATCHWOLF_MINECRAFT_RUNTIME="${WATCHWOLF_MINECRAFT_RUNTIME:-legacy}" \
     servers-manager

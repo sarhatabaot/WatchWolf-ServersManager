@@ -3,18 +3,18 @@ package dev.watchwolf.serversmanager.server;
 import dev.watchwolf.core.entities.WorldType;
 import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.Plugin;
-import dev.watchwolf.core.utils.DockerUtilities;
 import dev.watchwolf.serversmanager.server.instantiator.Server;
 import dev.watchwolf.serversmanager.server.instantiator.ServerInstantiator;
 import dev.watchwolf.serversmanager.server.instantiator.ThrowableServer;
 import dev.watchwolf.serversmanager.server.ip.ExternalizeIpManager;
 import dev.watchwolf.serversmanager.server.ip.IpManager;
 import dev.watchwolf.serversmanager.server.ip.ReachedAddressIpManager;
+import dev.watchwolf.serversmanager.server.runtime.LegacyRuntimeProvider;
+import dev.watchwolf.serversmanager.server.runtime.MinecraftRuntimeProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -24,19 +24,20 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Stream;
-
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class ServersManager implements Closeable {
     public static final String TARGET_SERVER_JAR = "server.jar";
     private static Path LOGS_FOLDER_BASE = Paths.get(((System.getenv("SERVER_PATH_SHIFT") == null) ? "." : System.getenv("SERVER_PATH_SHIFT")) + "/logs");
 
-    private final ServerInstantiator serverInstantiator;
+    private final MinecraftRuntimeProvider runtimeProvider;
     private final IpManager ipManager;
 
     public ServersManager(ServerInstantiator serverInstantiator) {
-        this.serverInstantiator = serverInstantiator;
+        this(new LegacyRuntimeProvider(serverInstantiator));
+    }
+
+    public ServersManager(MinecraftRuntimeProvider runtimeProvider) {
+        this.runtimeProvider = runtimeProvider;
         // prefer the address the requester actually reached us on; MACHINE_IP/PUBLIC_IP is the guess
         // we fall back to when ours aren't the host's addresses (see ReachedAddressIpManager)
         this.ipManager = new ReachedAddressIpManager(new ExternalizeIpManager(System.getenv("MACHINE_IP"), System.getenv("PUBLIC_IP")));
@@ -44,7 +45,7 @@ public class ServersManager implements Closeable {
 
     @Override
     public void close() {
-        this.serverInstantiator.close();
+        this.runtimeProvider.close();
     }
 
     /**
@@ -60,11 +61,12 @@ public class ServersManager implements Closeable {
      * @return Created server IP&port
      */
     public ThrowableServer startServer(final String serverType, final String serverVersion, Collection<Plugin> plugins, WorldType worldType, String seed, Collection<ConfigFile> maps, Collection<ConfigFile> configFiles, InetSocketAddress serverRequestee) throws IOException,ServerJarUnavailableException {
-        final String path = ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType, seed, maps, configFiles, TARGET_SERVER_JAR);
+        final MinecraftRuntimeProvider.StartedServer started = runtimeProvider.startServer(
+                serverType, serverVersion, plugins, worldType, seed, maps, configFiles);
+        final String path = started.folder();
         final Date serverCreatedAt = new Date();
 
-        System.out.println("Starting " + serverType + " " + serverVersion + " server on " + path + "...");
-        final Server server = this.serverInstantiator.startServer(Paths.get(path), TARGET_SERVER_JAR, DockerUtilities.getJavaVersion(serverVersion));
+        final Server server = started.server();
         String reportedIp = server.getIp();
         server.setIp(this.ipManager.getIp(reportedIp, serverRequestee));
         System.out.println("Server " + serverType + " " + serverVersion + " is up on " + reportedIp
