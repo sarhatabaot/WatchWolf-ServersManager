@@ -12,13 +12,13 @@ public final class MinecraftRuntimeProviders {
     }
 
     public static MinecraftRuntimeProvider select(String configured) {
-        if (configured == null || configured.isBlank() || configured.equals("legacy")) {
+        if ("legacy".equals(configured)) {
             return new LegacyRuntimeProvider(new DockerizedServerInstantiator());
         }
-        if (configured.equals("itzg")) {
+        if (configured == null || configured.isBlank() || configured.equals("itzg")) {
             return new ItzgRuntimeProvider(new ItzgDockerServerInstantiator(),
                     configuredOrDefault("WATCHWOLF_ITZG_IMAGE", "itzg/minecraft-server"),
-                    configuredOrDefault("WATCHWOLF_ITZG_TAG", "java21"));
+                    configuredOrDefault("WATCHWOLF_ITZG_TAG", "auto"));
         }
         throw new IllegalArgumentException("Unsupported WATCHWOLF_MINECRAFT_RUNTIME: " + configured
                 + "; supported values are legacy and itzg");

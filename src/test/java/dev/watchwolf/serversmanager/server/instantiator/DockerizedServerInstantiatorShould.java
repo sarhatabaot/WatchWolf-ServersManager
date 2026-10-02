@@ -5,6 +5,7 @@ import com.github.dockerjava.api.model.ContainerPort;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -37,5 +38,12 @@ public class DockerizedServerInstantiatorShould {
 
         assertEquals(0, DockerizedServerInstantiator.getUsedPublicPorts(
                 List.of(noPorts, withUnpublishedPort)).size());
+    }
+
+    @Test
+    public void preserveTheWindowsDriveLetterInALegacyFolderBind() {
+        var bind = DockerizedServerInstantiator.serverFolderBind(Path.of("H:/WatchWolf/tmp/123"));
+        assertEquals("H:/WatchWolf/tmp/123", bind.getPath());
+        assertEquals("/server", bind.getVolume().getPath());
     }
 }

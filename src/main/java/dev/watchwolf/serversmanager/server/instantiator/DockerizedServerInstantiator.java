@@ -244,7 +244,7 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
                                     PortBinding.parse(socketPort + ":25566")
                             )
                             .withAutoRemove(true)
-                            .withBinds(Bind.parse(folderLocation.toString() + ":/server")))
+                            .withBinds(serverFolderBind(folderLocation)))
                     .withExposedPorts(new ExposedPort(25565, InternetProtocol.TCP),
                             new ExposedPort(25565, InternetProtocol.UDP),
                             new ExposedPort(25566, InternetProtocol.TCP))
@@ -282,6 +282,11 @@ public class DockerizedServerInstantiator implements ServerInstantiator {
      */
     static String stripDockerNamePrefix(String name) {
         return (name != null && name.startsWith("/")) ? name.substring(1) : name;
+    }
+
+    static Bind serverFolderBind(Path folderLocation) {
+        // Bind.parse treats the colon in a Windows drive letter as a field separator.
+        return new Bind(folderLocation.toString(), new Volume("/server"));
     }
 
     /**

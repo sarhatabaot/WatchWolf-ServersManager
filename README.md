@@ -1,8 +1,8 @@
 # WatchWolf - ServersManager [![CodeFactor](https://www.codefactor.io/repository/github/miranda1000/watchwolf-serversmanager/badge/dev)](https://www.codefactor.io/repository/github/miranda1000/watchwolf-serversmanager/overview/dev)
 
 Provides Minecraft servers on demand for the [WatchWolf](https://watchwolf.dev/) framework. It
-listens on TCP **8000**, and for every *start server* petition it assembles a server folder (jar,
-plugins, world, config files), launches it inside its own Docker container, streams the console
+listens on TCP **8000**, and for every *start server* petition it assembles a server folder (plugins,
+world, config files, and a JAR only for legacy), launches it inside its own Docker container, streams the console
 back to the requester, and frees everything once the server stops.
 
 `dev.watchwolf:watchwolf-servers-manager` · **Java 17** · Docker
@@ -10,20 +10,33 @@ back to the requester, and frees everything once the server stops.
 ## How it works
 
 The runtime provider is selected by `WATCHWOLF_MINECRAFT_RUNTIME`. The launch script passes
-this host variable into ServersManager; an unset or empty value selects `legacy`. Set it to
-`itzg` to use `itzg/minecraft-server` for **Paper 1.20.6 only**. Other requests return a
-provisioning error. The legacy provider still requires the prebuilt server JAR and selects an
-`eclipse-temurin` Java image from the requested Minecraft version.
+this host variable into ServersManager; an unset or empty value selects `itzg`. Set it to
+`legacy` for the explicit fallback. The legacy provider requires a prebuilt server JAR and
+selects an `eclipse-temurin` Java image from the requested Minecraft version. The `itzg`
+provider rejects other types and versions with a provisioning error; it does not silently
+replace a Spigot request with Paper.
+
+| Provider | Server type and versions | Java image variant | Validation |
+| --- | --- | --- | --- |
+| itzg | Paper 1.19 | `java17` | Docker startup, WatchWolf plugin socket, Tester player-list request |
+| itzg | Paper 1.20.2 | `java17` | Docker startup, WatchWolf plugin socket, Tester player-list request |
+| itzg | Paper 1.20.6 | `java21` | Docker startup, WatchWolf plugin socket, Tester player-list request |
+| legacy | Existing JAR-backed types and versions | WW-Core version mapping | Paper 1.20.6 parity workflow on Windows Docker Desktop |
+
+The Tester fixtures also request Spigot and older Paper versions, including 1.8.8, 1.12.2,
+and 1.15. Those remain on the explicit legacy provider and need matching local JARs. They are
+not part of the tested itzg matrix. Linux Docker Engine has not been validated here.
 
 For the itzg provider, `WATCHWOLF_ITZG_IMAGE` defaults to `itzg/minecraft-server` and
-`WATCHWOLF_ITZG_TAG` defaults to `java21`. Set these variables in the host environment before
+`WATCHWOLF_ITZG_TAG` defaults to `auto`, selecting the image variants in the table. Set these variables in the host environment before
 running `ci/release/run.sh`; the script passes them into the manager. A variable explicitly set
 inside the manager container takes precedence over the code default. The image tag selects the
 container runtime and is independent of the requested Minecraft version. The manager pulls a
 missing image, then the image downloads the requested Paper build on first start. Pin the tag
 or image deliberately before release. Every isolated instance downloads its own Paper files;
-there is no shared Minecraft JAR cache yet. The image's documented Java 21 variant is used for
-Paper 1.20.6; `stable` currently selects a different Java major version.
+there is no shared Minecraft JAR cache yet. An explicit tag overrides the per-version choice;
+validate that override against the requested Paper version. Floating Java variant tags should
+be pinned to a release tag or digest before a release that requires reproducibility.
 
 Each itzg instance gets its own named Docker volume mounted at `/data`. ServersManager copies
 the prepared world, config and plugin files into that volume through Docker's API. The
@@ -32,10 +45,12 @@ the server exits; instance logs under `logs/` remain. The manager still needs th
 socket, and instances retain the existing bridge network and consecutive published port pair.
 The helper copies files into the mounted volume and sets ownership to UID/GID 1000, matching
 the itzg runtime settings. This storage path avoids nested Docker bind mounts on Windows Docker
-Desktop. A real Paper 1.20.6 run and a Tester player-list petition passed on Windows Docker
+Desktop. The version matrix and a legacy Paper 1.20.6 parity request passed on Windows Docker
 Desktop with Linux containers on 2026-10-02. Linux Docker Engine has not been tested here.
 The itzg provider assumes one ServersManager process per Docker daemon when reclaiming
 labelled containers and `watchwolf-itzg-*` volumes after a manager restart.
+
+The following diagram describes the legacy fallback path:
 
 ```
 Tester ──"start Spigot 1.19 with these plugins"──▶ ServersManager :8000
@@ -122,8 +137,9 @@ All of these live in `ci/release/` (or `ci/debug/`), and are gitignored:
 | `tmp/<id>/` | One scratch folder per running server; removed when it stops |
 | `logs/<id>/` | `info.txt` (type, version, IP, timestamp) and `latest.log`, kept after the server dies |
 
-The setup script populates `server-types/` and `usual-plugins/` for you; `src/tools/` holds the
-legacy Spigot/Paper build scripts it uses.
+The setup script populates `usual-plugins/`. With `WATCHWOLF_MINECRAFT_RUNTIME=itzg`, it leaves
+`server-types/` empty; with `legacy`, it prepares JARs there. `src/tools/` holds those legacy
+Spigot/Paper build scripts.
 
 ## Test
 

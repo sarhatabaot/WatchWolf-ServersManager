@@ -5,6 +5,7 @@ import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.Plugin;
 import dev.watchwolf.core.utils.DockerUtilities;
 import dev.watchwolf.serversmanager.server.ServerJarUnavailableException;
+import dev.watchwolf.serversmanager.server.ServerProvisioningException;
 import dev.watchwolf.serversmanager.server.ServerRequirements;
 import dev.watchwolf.serversmanager.server.instantiator.ServerInstantiator;
 
@@ -28,8 +29,17 @@ public final class LegacyRuntimeProvider implements MinecraftRuntimeProvider {
         String folder = ServerRequirements.setupFolder(serverType, serverVersion, plugins, worldType,
                 seed, maps, configFiles, SERVER_JAR);
         System.out.println("Starting " + serverType + " " + serverVersion + " server on " + folder + "...");
-        return new StartedServer(folder, serverInstantiator.startServer(
-                Paths.get(folder), SERVER_JAR, DockerUtilities.getJavaVersion(serverVersion)));
+        try {
+            return new StartedServer(folder, serverInstantiator.startServer(
+                    Paths.get(folder), SERVER_JAR, DockerUtilities.getJavaVersion(serverVersion)));
+        } catch (RuntimeException ex) {
+            try {
+                ServerRequirements.clearFolder(folder);
+            } catch (IOException cleanupFailure) {
+                ex.addSuppressed(cleanupFailure);
+            }
+            throw new ServerProvisioningException("Couldn't launch legacy " + serverType + " " + serverVersion, ex);
+        }
     }
 
     @Override

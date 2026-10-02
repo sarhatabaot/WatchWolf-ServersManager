@@ -5,6 +5,7 @@ import dev.watchwolf.core.entities.files.ConfigFile;
 import dev.watchwolf.core.entities.files.plugins.Plugin;
 import dev.watchwolf.core.utils.DockerUtilities;
 import dev.watchwolf.serversmanager.server.ServerRequirements;
+import dev.watchwolf.serversmanager.server.ServerProvisioningException;
 import dev.watchwolf.serversmanager.server.instantiator.Server;
 import dev.watchwolf.serversmanager.server.instantiator.ServerInstantiator;
 import org.junit.jupiter.api.Test;
@@ -44,10 +45,30 @@ public class LegacyRuntimeProviderShould {
     }
 
     @Test
-    public void defaultToLegacyAndSelectItzgExplicitly() {
-        assertInstanceOf(LegacyRuntimeProvider.class, MinecraftRuntimeProviders.select(null));
+    public void defaultToItzgAndRetainAnExplicitLegacyFallback() {
+        assertInstanceOf(ItzgRuntimeProvider.class, MinecraftRuntimeProviders.select(null));
+        assertInstanceOf(ItzgRuntimeProvider.class, MinecraftRuntimeProviders.select(""));
         assertInstanceOf(LegacyRuntimeProvider.class, MinecraftRuntimeProviders.select("legacy"));
         assertInstanceOf(ItzgRuntimeProvider.class, MinecraftRuntimeProviders.select("itzg"));
         assertThrows(IllegalArgumentException.class, () -> MinecraftRuntimeProviders.select("unknown"));
+    }
+
+    @Test
+    public void clearThePreparedFolderWhenLegacyDockerCreationFails() throws Exception {
+        ServerInstantiator instantiator = mock(ServerInstantiator.class);
+        List<Plugin> plugins = List.of();
+        List<ConfigFile> files = List.of();
+        try (MockedStatic<ServerRequirements> requirements = mockStatic(ServerRequirements.class);
+             MockedStatic<DockerUtilities> javaVersions = mockStatic(DockerUtilities.class)) {
+            requirements.when(() -> ServerRequirements.setupFolder("Paper", "1.20.6", plugins,
+                    WorldType.FLAT, "42", files, files, "server.jar")).thenReturn("tmp/123");
+            javaVersions.when(() -> DockerUtilities.getJavaVersion("1.20.6")).thenReturn(21);
+            when(instantiator.startServer(Paths.get("tmp/123"), "server.jar", 21))
+                    .thenThrow(new IllegalStateException("Docker rejected the bind"));
+
+            assertThrows(ServerProvisioningException.class, () -> new LegacyRuntimeProvider(instantiator)
+                    .startServer("Paper", "1.20.6", plugins, WorldType.FLAT, "42", files, files));
+            requirements.verify(() -> ServerRequirements.clearFolder("tmp/123"));
+        }
     }
 }
