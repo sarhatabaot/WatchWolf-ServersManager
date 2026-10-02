@@ -9,8 +9,9 @@ import dev.watchwolf.serversmanager.server.ServerRequirements;
 import dev.watchwolf.serversmanager.server.instantiator.ItzgDockerServerInstantiator;
 import dev.watchwolf.serversmanager.server.instantiator.ThrowableServer;
 import dev.watchwolf.serversmanager.server.runtime.ItzgRuntimeProvider;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -24,15 +25,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @Timeout(10 * 60)
 public class ITItzgRuntimeProviderShould {
-    @Test
-    public void startPaperWithWatchWolfAndRemoveItsVolumeOnStop() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"1.19", "1.20.2", "1.20.6"})
+    public void startPaperWithWatchWolfAndRemoveItsVolumeOnStop(String version) throws Exception {
         CountDownLatch ready = new CountDownLatch(1);
         CountDownLatch stopped = new CountDownLatch(1);
         String folder = null;
         String instanceId = null;
         try (ItzgRuntimeProvider provider = new ItzgRuntimeProvider(new ItzgDockerServerInstantiator(),
-                "itzg/minecraft-server", "java21")) {
-            var launched = provider.startServer("Paper", "1.20.6", List.of(), WorldType.FLAT,
+                "itzg/minecraft-server", "auto")) {
+            var launched = provider.startServer("Paper", version, List.of(), WorldType.FLAT,
                     "1", List.of(), List.of());
             folder = launched.folder();
             instanceId = ServerRequirements.getHashFromServerPath(folder);

@@ -29,4 +29,14 @@ public class ItzgContainerSpecShould {
         assertThrows(IllegalArgumentException.class, () -> ItzgContainerSpec.paper(
                 "Paper", "1.21", "itzg/minecraft-server", "java21", "123"));
     }
+
+    @Test
+    public void chooseTheJavaImageForEachSupportedPaperVersion() {
+        assertEquals("itzg/minecraft-server:java17", ItzgContainerSpec.paper(
+                "Paper", "1.19", "itzg/minecraft-server", "auto", "123").image());
+        assertEquals("itzg/minecraft-server:java17", ItzgContainerSpec.paper(
+                "Paper", "1.20.2", "itzg/minecraft-server", "auto", "123").image());
+        assertEquals("itzg/minecraft-server:java21", ItzgContainerSpec.paper(
+                "Paper", "1.20.6", "itzg/minecraft-server", "auto", "123").image());
+    }
 }
