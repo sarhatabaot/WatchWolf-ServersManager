@@ -12,7 +12,7 @@ RUN mkdir -p lib \
     && mvn -B -DskipTests package
 
 FROM maven:3.9-eclipse-temurin-17 AS plugin_asset
-ARG WATCHWOLF_SERVER_VERSION=0.4.0
+ARG WATCHWOLF_SERVER_VERSION=0.4.1
 RUN mkdir -p /plugin \
     && curl -fL --retry 3 \
         "https://github.com/sarhatabaot/WatchWolf-Server/releases/download/v${WATCHWOLF_SERVER_VERSION}/WatchWolf-${WATCHWOLF_SERVER_VERSION}-1.8-LATEST.jar" \
@@ -24,7 +24,7 @@ RUN mkdir -p /plugin \
     && rm "WatchWolf-${WATCHWOLF_SERVER_VERSION}-1.8-LATEST.jar.sha256"
 
 FROM eclipse-temurin:17-jdk
-ARG MANAGER_VERSION=0.4.0
+ARG MANAGER_VERSION=0.4.1
 LABEL org.opencontainers.image.source="https://github.com/sarhatabaot/WatchWolf-ServersManager"
 WORKDIR /servers
 COPY --from=manager_build /src/manager/target/watchwolf-servers-manager-${MANAGER_VERSION}.jar ServersManager.jar

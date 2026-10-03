@@ -9,9 +9,9 @@ back to the requester, and frees everything once the server stops.
 
 ## GHCR image release
 
-Publishing a GitHub Release with a tag such as `v0.4.0` runs
+Publishing a GitHub Release with a tag such as `v0.4.1` runs
 `.github/workflows/release-image.yml` and pushes
-`ghcr.io/sarhatabaot/watchwolf-servers-manager:v0.4.0`. The image builds the manager from
+`ghcr.io/sarhatabaot/watchwolf-servers-manager:v0.4.1`. The image builds the manager from
 this repository and includes the WatchWolf-Server plugin JAR from the **published** Server
 release. The workflow pins that plugin version with `WATCHWOLF_SERVER_VERSION`; update it when
 releasing a newer plugin. Publish the plugin release first, then this manager release.
