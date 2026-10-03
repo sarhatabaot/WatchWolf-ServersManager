@@ -1,0 +1,10 @@
+.git
+.idea
+target
+lib
+ci/debug
+ci/release/ServersManager.jar
+ci/release/logs
+ci/release/tmp
+ci/release/server-types
+ci/release/usual-plugins

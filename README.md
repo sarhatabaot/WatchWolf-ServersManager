@@ -7,6 +7,21 @@ back to the requester, and frees everything once the server stops.
 
 `dev.watchwolf:watchwolf-servers-manager` · **Java 17** · Docker
 
+## GHCR image release
+
+Publishing a GitHub Release with a tag such as `v0.3.3` runs
+`.github/workflows/release-image.yml` and pushes
+`ghcr.io/sarhatabaot/watchwolf-servers-manager:v0.3.3`. The image builds the manager from
+this repository and includes the WatchWolf-Server plugin JAR from the **published** Server
+release. The workflow pins that plugin version with `WATCHWOLF_SERVER_VERSION`; update it when
+releasing a newer plugin. Publish the plugin release first, then this manager release.
+
+The release image has the plugin in `/servers/usual-plugins` and starts with an empty
+`server-types` directory for the default itzg runtime. It does not use the older
+`ci/release/build.sh` download path. The Compose deployment is in the WatchWolf repository's
+`compose.release.yaml`. It still needs Docker daemon access to create ephemeral Minecraft
+containers. Tag `v<version>` must match the Maven project version or the image build fails.
+
 ## How it works
 
 The runtime provider is selected by `WATCHWOLF_MINECRAFT_RUNTIME`. The launch script passes
