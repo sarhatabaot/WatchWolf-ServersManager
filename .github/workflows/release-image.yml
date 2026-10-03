@@ -12,7 +12,7 @@ jobs:
   image:
     runs-on: ubuntu-latest
     env:
-      WATCHWOLF_SERVER_VERSION: '0.3.1'
+      WATCHWOLF_SERVER_VERSION: '0.4.0'
     steps:
       - uses: actions/checkout@v4
       - name: Derive manager version from release tag
