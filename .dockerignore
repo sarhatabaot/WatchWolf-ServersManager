@@ -1,6 +1,8 @@
 .git
 .idea
 target
+build
+.gradle
 lib
 ci/debug
 ci/release/ServersManager.jar
