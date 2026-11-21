@@ -5,12 +5,13 @@ script_path=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 base_path=$(CDPATH= cd -- "$script_path/../.." && pwd)
 
 # Only Docker and standard shell utilities are needed on the host.
-mkdir -p "$HOME/.m2"
+mkdir -p "$HOME/.gradle"
 docker run --rm -i --user "$(id -u):$(id -g)" --env HOME=/tmp \
+    --env GRADLE_USER_HOME=/gradle-cache \
     --volume "$base_path:/compile" \
-    --volume "$HOME/.m2:/maven-cache" \
+    --volume "$HOME/.gradle:/gradle-cache" \
     --workdir /compile/ci/debug --entrypoint /bin/bash \
-    maven:3.9-eclipse-temurin-17 -s -- "$@" <<'PREPARE'
+    gradle:9.7.1-jdk17 -s -- "$@" <<'PREPARE'
 #!/bin/bash
 set -euo pipefail
 
@@ -41,19 +42,17 @@ fi
 
 echo "[v] Compiling ServersManager..."
 if [[ $preclean -eq 1 ]]; then
-    # Install the local Core jar before Maven resolves compile dependencies.
-    mvn --batch-mode --file /compile -Dmaven.repo.local=/maven-cache/repository clean
+    gradle --no-daemon --project-dir /compile clean
 fi
-mvn --batch-mode --file /compile -Dmaven.repo.local=/maven-cache/repository \
-    compile assembly:single -Dmaven.test.skip=true
+gradle --no-daemon --project-dir /compile shadowJar -x test
 
 echo "[v] Moving WW-Server to the 'usual plugins' folder..."
 cp "${server_jars[0]}" "usual-plugins/WatchWolf-$server_version-1.8-LATEST.jar"
 
 echo "[v] Preparing WW-ServersManager jar file..."
-manager_jars=(/compile/target/watchwolf-servers-manager-*.jar)
+manager_jars=(/compile/build/libs/watchwolf-servers-manager-*.jar)
 if [[ ${#manager_jars[@]} -ne 1 ]]; then
-    echo "[e] Expected exactly one ServersManager jar in target; try --preclean." >&2
+    echo "[e] Expected exactly one ServersManager jar in build/libs; try --preclean." >&2
     exit 1
 fi
 cp "${manager_jars[0]}" ServersManager.jar
