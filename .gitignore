@@ -1,6 +1,9 @@
 # Dependencies
 lib/*
 
+# Gradle project cache
+/.gradle/
+
 
 target/
 !.mvn/wrapper/maven-wrapper.jar
