@@ -1,18 +1,21 @@
 package dev.watchwolf.serversmanager.server.runtime;
 
 import java.util.Map;
-import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Docker-independent part of the first supported itzg request. */
 public record ItzgContainerSpec(String image, String serverVersion, Map<String, String> environment,
                                 Map<String, String> labels) {
-    public static final Set<String> SUPPORTED_VERSIONS = Set.of("1.19", "1.20.2", "1.20.6");
+    private static final Pattern RELEASE_VERSION = Pattern.compile("\\d+\\.\\d+(?:\\.\\d+)?");
 
     public static ItzgContainerSpec paper(String serverType, String serverVersion, String image, String tag,
                                           String instanceId) {
-        if (!"Paper".equals(serverType) || !SUPPORTED_VERSIONS.contains(serverVersion)) {
-            throw new IllegalArgumentException("itzg currently supports Paper " + SUPPORTED_VERSIONS
-                    + "; requested " + serverType + " " + serverVersion);
+        if (!"Paper".equals(serverType)) {
+            throw new IllegalArgumentException("itzg currently supports only Paper; requested " + serverType);
+        }
+        if (serverVersion == null || !RELEASE_VERSION.matcher(serverVersion).matches()) {
+            throw new IllegalArgumentException("Paper version must use a numeric release format such as 1.21.1; requested "
+                    + serverVersion);
         }
         if (image == null || image.isBlank() || tag == null || tag.isBlank()) {
             throw new IllegalArgumentException("WATCHWOLF_ITZG_IMAGE and WATCHWOLF_ITZG_TAG must be nonempty");
