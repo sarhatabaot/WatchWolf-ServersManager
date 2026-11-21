@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "dev.watchwolf"
-version = "0.4.1"
+version = "0.4.2"
 
 base {
     archivesName.set("watchwolf-servers-manager")
