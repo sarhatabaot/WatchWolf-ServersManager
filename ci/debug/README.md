@@ -26,4 +26,6 @@ look up the public address.
 
 Use `./tests.sh --unit` to run the unit tests, or `./tests.sh --integration` for the integration tests.
 
-You'll find the reports summary on `target/site`, or you can check `target/surefire-reports` (unit tests) and `target/failsafe-reports` (integration tests) for the output logs.
+You'll find HTML reports under `build/reports/tests/test` (unit) and
+`build/reports/tests/integrationTest` (integration). XML results and captured launcher logs are
+under `build/test-results`.

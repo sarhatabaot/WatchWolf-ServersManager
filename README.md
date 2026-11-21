@@ -20,7 +20,7 @@ The release image has the plugin in `/servers/usual-plugins` and starts with an 
 `server-types` directory for the default itzg runtime. It does not use the older
 `ci/release/build.sh` download path. The Compose deployment is in the WatchWolf repository's
 `compose.release.yaml`. It still needs Docker daemon access to create ephemeral Minecraft
-containers. Tag `v<version>` must match the Maven project version or the image build fails.
+containers. Tag `v<version>` must match the Gradle project version or the image build fails.
 
 ## How it works
 
@@ -28,14 +28,19 @@ The runtime provider is selected by `WATCHWOLF_MINECRAFT_RUNTIME`. The launch sc
 this host variable into ServersManager; an unset or empty value selects `itzg`. Set it to
 `legacy` for the explicit fallback. The legacy provider requires a prebuilt server JAR and
 selects an `eclipse-temurin` Java image from the requested Minecraft version. The `itzg`
-provider rejects other types and versions with a provisioning error; it does not silently
-replace a Spigot request with Paper.
+provider accepts Paper versions in numeric release format (`major.minor` or
+`major.minor.patch`) and passes the requested value unchanged as `VERSION`. It rejects other
+server types and malformed versions with a provisioning error; it does not silently replace a
+Spigot request with Paper. This validation deliberately does not claim that every syntactically
+valid release is compatible; runtime availability and plugin compatibility are verified when
+the server starts.
 
 | Provider | Server type and versions | Java image variant | Validation |
 | --- | --- | --- | --- |
 | itzg | Paper 1.19 | `java17` | Docker startup, WatchWolf plugin socket, Tester player-list request |
 | itzg | Paper 1.20.2 | `java17` | Docker startup, WatchWolf plugin socket, Tester player-list request |
 | itzg | Paper 1.20.6 | `java21` | Docker startup, WatchWolf plugin socket, Tester player-list request |
+| itzg | Paper 1.21.1 | `java21` | Docker startup and bundled WatchWolf plugin socket |
 | legacy | Existing JAR-backed types and versions | WW-Core version mapping | Paper 1.20.6 parity workflow on Windows Docker Desktop |
 
 The Tester fixtures also request Spigot and older Paper versions, including 1.8.8, 1.12.2,
@@ -43,7 +48,8 @@ and 1.15. Those remain on the explicit legacy provider and need matching local J
 not part of the tested itzg matrix. Linux Docker Engine has not been validated here.
 
 For the itzg provider, `WATCHWOLF_ITZG_IMAGE` defaults to `itzg/minecraft-server` and
-`WATCHWOLF_ITZG_TAG` defaults to `auto`, selecting the image variants in the table. Set these variables in the host environment before
+`WATCHWOLF_ITZG_TAG` defaults to `auto`, selecting the established Java variants through Paper
+1.20.6. Paper 1.21.1 is provisioned with an explicit `java21` tag in the compatibility test. Set these variables in the host environment before
 running `ci/release/run.sh`; the script passes them into the manager. A variable explicitly set
 inside the manager container takes precedence over the code default. The image tag selects the
 container runtime and is independent of the requested Minecraft version. The manager pulls a
@@ -100,7 +106,7 @@ the Minecraft version (Java 8 below 1.17, 16 for 1.17, 17 up to 1.20.4, 21 from 
   docker pull eclipse-temurin:21-jdk
   ```
 - A [WatchWolf-Core release](https://github.com/watch-wolf/WatchWolf-Core/releases) matching the
-  version in `pom.xml`; place the `.jar` inside `lib/`
+  version in `build.gradle.kts`; place the `.jar` inside `lib/`
 
 ## Compile
 
@@ -108,8 +114,8 @@ the Minecraft version (Java 8 below 1.17, 16 for 1.17, 17 up to 1.20.4, 21 from 
 ./ci/debug/build.sh --preclean
 ```
 
-`--preclean` matters: the WatchWolf-Core jar in `lib/` is installed into your local Maven
-repository during the **clean** phase, so skipping it will keep using whatever was there before.
+`--preclean` removes previous Gradle outputs before assembling. The WatchWolf-Core jar in `lib/`
+is consumed directly as a file dependency, so no local artifact-repository installation is needed.
 
 The debug build expects exactly one `watchwolf-server-<version>.jar` in `ci/debug/`.
 It compiles and assembles `ServersManager.jar`, prepares the plugin, and builds the
@@ -120,10 +126,10 @@ it downloads the latest ServersManager and WatchWolf-Server releases and builds 
 Create `ci/release/server-types/` and `ci/release/usual-plugins/` first (normally done by setup).
 
 Both scripts can be called from any working directory. Artifact preparation runs in a
-temporary container using commands embedded in each `build.sh`. Debug uses the Maven image
+temporary container using commands embedded in each `build.sh`. Debug uses the Gradle image
 directly; release uses Ubuntu and installs its download and parsing tools during the run.
-Only the final runtime image is built. Maven, wget, jq, and GNU grep/sort run inside Docker,
-so the host only needs Docker and standard shell utilities. The debug build reuses `$HOME/.m2` for Maven
+Only the final runtime image is built. Gradle, wget, jq, and GNU grep/sort run inside Docker,
+so the host only needs Docker and standard shell utilities. The debug build reuses `$HOME/.gradle` for Gradle
 dependencies. Generated files belong to the invoking user, and a failed preparation stops
 the build before the runtime image is built. The runtime Dockerfiles remain separate from
 the build tooling.
@@ -165,8 +171,9 @@ Spigot/Paper build scripts.
 ./ci/debug/validator.sh          # checks the test naming conventions
 ```
 
-Reports land in `target/site` (HTML summary), `target/surefire-reports` (unit) and
-`target/failsafe-reports` (integration). Unit tests must be named `*Should`; integration tests
+HTML reports land in `build/reports/tests/test` (unit) and
+`build/reports/tests/integrationTest` (integration); XML results are under `build/test-results`.
+Unit tests must be named `*Should`; integration tests
 must be named `IT*` and declare `@Timeout`. Integration tests genuinely start containers, so they
 need Docker and the data folders above.
 

@@ -4,7 +4,7 @@ Provides Minecraft servers on demand. It listens on TCP **8000**, and for every 
 petition it materialises a server folder (jar + plugins + world + config), launches it in its own
 Docker container, streams the console back, and cleans up when the container dies.
 
-`dev.watchwolf:watchwolf-servers-manager` · **Java 17** · Maven · DST `0b000` in the
+`dev.watchwolf:watchwolf-servers-manager` · **Java 17** · Gradle · DST `0b000` in the
 [WatchWolf protocol](https://github.com/watch-wolf/WatchWolf).
 
 ## Layout
@@ -34,12 +34,11 @@ ci/release/                             build & run against the published releas
 ## Build, run, test
 
 ```bash
-./ci/debug/build.sh --preclean          # compile (dockerized maven:3.8.3-openjdk-17)
-./ci/debug/build.sh --preclean --test   # + assemble ServersManager.jar and build the container
+./ci/debug/build.sh --preclean          # compile (dockerized Gradle 9.7.1 / JDK 17)
 ./ci/debug/run.sh                       # docker run (builds image if missing)
 ./ci/debug/run.sh --force-recreate      # rebuild image and run
 
-**Note:** `build.sh` compiles to `target/watchwolf-servers-manager-*.jar` and then copies it to
+**Note:** `build.sh` compiles to `build/libs/watchwolf-servers-manager-*.jar` and then copies it to
 `ci/debug/ServersManager.jar`. The `run.sh` script builds a Docker image from `ci/debug/Dockerfile`
 which `ADD`s `ServersManager.jar` — so always run `build.sh` before `run.sh` to ensure the container
 uses the latest build.
@@ -52,14 +51,13 @@ uses the latest build.
 ./ci/release/run.sh                     # docker run (this is what WatchWolfSetup.sh runs)
 ```
 
-**`--preclean` is not optional when the WW-Core jar changes.** The `local-ww-core-profile`
-(active by default) installs `lib/watchwolf-core-<version>.jar` into `~/.m2` during the **`clean`**
-phase. Without a clean, Maven resolves whatever is already in the local repo.
+`--preclean` removes prior Gradle outputs. The Core jar is consumed directly from `lib/`, so it
+does not need to be installed into a local artifact repository.
 
 ### Dependencies you must provide
 
 - `lib/watchwolf-core-0.3.1.jar` — build it with WatchWolf-Core's `./ci/build.sh` and copy it in.
-  `lib/` is gitignored, and the version must match `<dependency>` in `pom.xml`.
+  `lib/` is gitignored, and the version must match the file dependency in `build.gradle.kts`.
 - Docker, plus the JDK images the servers run on:
   `eclipse-temurin:{8,16,17,21}-jdk` (chosen per Minecraft version by
   `dev.watchwolf.core.utils.DockerUtilities.getJavaVersion`).
