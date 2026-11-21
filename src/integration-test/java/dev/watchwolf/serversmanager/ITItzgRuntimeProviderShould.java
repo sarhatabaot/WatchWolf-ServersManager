@@ -9,6 +9,7 @@ import dev.watchwolf.serversmanager.server.ServerRequirements;
 import dev.watchwolf.serversmanager.server.instantiator.ItzgDockerServerInstantiator;
 import dev.watchwolf.serversmanager.server.instantiator.ThrowableServer;
 import dev.watchwolf.serversmanager.server.runtime.ItzgRuntimeProvider;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -27,13 +28,22 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ITItzgRuntimeProviderShould {
     @ParameterizedTest
     @ValueSource(strings = {"1.19", "1.20.2", "1.20.6"})
-    public void startPaperWithWatchWolfAndRemoveItsVolumeOnStop(String version) throws Exception {
+    public void startEstablishedPaperVersionsWithWatchWolfAndRemoveTheirVolumesOnStop(String version) throws Exception {
+        provisionPaperAndVerifyWatchWolfPlugin(version, "auto");
+    }
+
+    @Test
+    public void provisionPaper1211WithBundledWatchWolfPluginOnJava21() throws Exception {
+        provisionPaperAndVerifyWatchWolfPlugin("1.21.1", "java21");
+    }
+
+    private void provisionPaperAndVerifyWatchWolfPlugin(String version, String imageTag) throws Exception {
         CountDownLatch ready = new CountDownLatch(1);
         CountDownLatch stopped = new CountDownLatch(1);
         String folder = null;
         String instanceId = null;
         try (ItzgRuntimeProvider provider = new ItzgRuntimeProvider(new ItzgDockerServerInstantiator(),
-                "itzg/minecraft-server", "auto")) {
+                "itzg/minecraft-server", imageTag)) {
             var launched = provider.startServer("Paper", version, List.of(), WorldType.FLAT,
                     "1", List.of(), List.of());
             folder = launched.folder();

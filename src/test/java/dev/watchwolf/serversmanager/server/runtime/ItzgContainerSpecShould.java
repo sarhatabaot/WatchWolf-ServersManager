@@ -23,11 +23,26 @@ public class ItzgContainerSpecShould {
     }
 
     @Test
-    public void rejectUnverifiedTypesAndVersions() {
+    public void acceptFuturePaperReleaseVersionsAndPassThemThrough() {
+        ItzgContainerSpec spec = ItzgContainerSpec.paper(
+                "Paper", "1.21.1", "itzg/minecraft-server", "java21", "123");
+
+        assertEquals("itzg/minecraft-server:java21", spec.image());
+        assertEquals("1.21.1", spec.serverVersion());
+        assertEquals("1.21.1", spec.environment().get("VERSION"));
+        assertEquals("1.21.1", spec.labels().get("watchwolf.server-version"));
+    }
+
+    @Test
+    public void rejectUnsupportedTypesAndMalformedVersions() {
         assertThrows(IllegalArgumentException.class, () -> ItzgContainerSpec.paper(
                 "Spigot", "1.20.6", "itzg/minecraft-server", "java21", "123"));
         assertThrows(IllegalArgumentException.class, () -> ItzgContainerSpec.paper(
-                "Paper", "1.21", "itzg/minecraft-server", "java21", "123"));
+                "Paper", "latest", "itzg/minecraft-server", "java21", "123"));
+        assertThrows(IllegalArgumentException.class, () -> ItzgContainerSpec.paper(
+                "Paper", "1.21.1-R0.1", "itzg/minecraft-server", "java21", "123"));
+        assertThrows(IllegalArgumentException.class, () -> ItzgContainerSpec.paper(
+                "Paper", null, "itzg/minecraft-server", "java21", "123"));
     }
 
     @Test
